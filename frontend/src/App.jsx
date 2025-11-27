@@ -14,8 +14,8 @@ const humanSize = (bytes = 0) => {
   return `${v.toFixed(1)} ${u[i]}`;
 };
 
-// --- FILE CATEGORY LOGIC ---
 const getFileCategory = (filename) => {
+    if(!filename) return 'Others';
     const ext = filename.split('.').pop().toLowerCase();
     const types = {
         image: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
@@ -23,7 +23,6 @@ const getFileCategory = (filename) => {
         document: ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'],
         audio: ['mp3', 'wav', 'ogg']
     };
-
     if (types.image.includes(ext)) return 'Images';
     if (types.video.includes(ext)) return 'Videos';
     if (types.document.includes(ext)) return 'Documents';
@@ -51,7 +50,9 @@ const Icon = {
   Clock: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
   Refresh: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
   User: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-  Close: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  Close: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Star: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  Check: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
 };
 
 /* --- HOOKS --- */
@@ -73,6 +74,7 @@ function useFileSystem(notify) {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  // 1. Fetch from MongoDB
   const fetchFiles = useCallback(async () => {
     setLoading(true);
     try {
@@ -80,12 +82,11 @@ function useFileSystem(notify) {
       if(!res.ok) throw new Error("Failed");
       const data = await res.json();
       setFiles(data.items || []);
-    } catch (e) { 
-      setFiles([]); 
-    } 
+    } catch (e) { setFiles([]); } 
     finally { setLoading(false); }
   }, []);
 
+  // 2. Upload (S3 + Mongo)
   const uploadFile = async (file) => {
     if (!file) return;
     setUploadProgress(10);
@@ -105,24 +106,61 @@ function useFileSystem(notify) {
     } catch (err) { notify("Upload failed", "error"); setUploadProgress(0); }
   };
 
-  const permanentlyDeleteFile = async (key) => {
+  // 3. Toggle Favorite (Mongo)
+  const toggleFavorite = async (file) => {
+      const newStatus = !file.isFavorite;
+      setFiles(prev => prev.map(f => f._id === file._id ? { ...f, isFavorite: newStatus } : f));
+      await fetch(`${BACKEND}/api/update/${file._id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isFavorite: newStatus })
+      });
+  };
+
+  // 4. Move to Trash (Mongo)
+  const moveToTrash = async (file) => {
+      setFiles(prev => prev.map(f => f._id === file._id ? { ...f, isTrash: true } : f));
+      notify("Moved to Trash");
+      await fetch(`${BACKEND}/api/update/${file._id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isTrash: true })
+      });
+  };
+
+  // 5. Restore (Mongo)
+  const restoreFromTrash = async (file) => {
+      setFiles(prev => prev.map(f => f._id === file._id ? { ...f, isTrash: false } : f));
+      notify("File Restored");
+      await fetch(`${BACKEND}/api/update/${file._id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isTrash: false })
+      });
+  };
+
+  // 6. Delete Permanent (Mongo + S3)
+  const permanentlyDeleteFile = async (file) => {
     try {
-        await fetch(`${BACKEND}/api/delete?key=${encodeURIComponent(key)}`, { method: "DELETE" });
-        setFiles(p => p.filter(f => f.Key !== key));
+        await fetch(`${BACKEND}/api/delete/${file._id}`, { method: "DELETE" });
+        setFiles(p => p.filter(f => f._id !== file._id));
         notify("File permanently deleted", "neutral");
         return true;
     } catch(e) { notify("Could not delete file", "error"); return false; }
   };
 
+  // 7. Stripe Checkout
+  const startProUpgrade = async () => {
+      try {
+          const res = await fetch(`${BACKEND}/api/create-checkout-session`, { method: 'POST' });
+          const data = await res.json();
+          if(data.url) window.location.href = data.url; 
+      } catch(e) { notify("Payment Error", "error"); }
+  };
+
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
-  return { files, loading, uploadProgress, uploadFile, permanentlyDeleteFile };
+  return { files, loading, uploadProgress, uploadFile, toggleFavorite, moveToTrash, restoreFromTrash, permanentlyDeleteFile, startProUpgrade };
 }
 
 /* --- COMPONENTS --- */
 
-const SidebarItem = ({ icon: IconComp, label, active, onClick }) => (
-    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${active ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-gray-500 hover:bg-white/50 hover:text-gray-900'}`}>
-        <IconComp width="18" className={active ? "opacity-100" : "opacity-70"}/> {label}
+const SidebarItem = ({ icon: IconComp, label, active, onClick, highlight }) => (
+    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${highlight ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30 hover:scale-105' : active ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-gray-500 hover:bg-white/50 hover:text-gray-900'}`}>
+        <IconComp width="18" className={active || highlight ? "opacity-100" : "opacity-70"}/> {label}
     </button>
 );
 
@@ -130,11 +168,11 @@ const FileCard = ({ file, inTrash, onRestore, onDelete, isLiked, toggleLike }) =
   <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ y: -5, boxShadow: "0 20px 40px -15px rgba(79, 70, 229, 0.2)" }} className="group relative bg-white/70 backdrop-blur-sm rounded-2xl p-5 border border-gray-100 shadow-sm hover:border-indigo-100 transition-all cursor-pointer">
     <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
        {inTrash ? (
-         <button onClick={(e) => { e.stopPropagation(); onRestore(file.Key); }} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><Icon.Refresh width="14" /></button>
+         <button onClick={(e) => { e.stopPropagation(); onRestore(file); }} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><Icon.Refresh width="14" /></button>
        ) : (
-         <button onClick={(e) => { e.stopPropagation(); toggleLike(file.Key); }} className={`p-1.5 rounded-lg hover:bg-pink-50 ${isLiked ? 'text-pink-500' : 'text-gray-400'}`}><Icon.Heart width="14" filled={isLiked} /></button>
+         <button onClick={(e) => { e.stopPropagation(); toggleLike(file); }} className={`p-1.5 rounded-lg hover:bg-pink-50 ${isLiked ? 'text-pink-500' : 'text-gray-400'}`}><Icon.Heart width="14" filled={isLiked} /></button>
        )}
-       <button onClick={(e) => { e.stopPropagation(); onDelete(file.Key); }} className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100"><Icon.Trash width="14" /></button>
+       <button onClick={(e) => { e.stopPropagation(); onDelete(file); }} className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100"><Icon.Trash width="14" /></button>
     </div>
     <div className="w-12 h-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center text-indigo-500 mb-4 group-hover:scale-110 transition-transform duration-300"><Icon.File width="24" /></div>
     <h4 className="font-semibold text-gray-800 text-sm truncate pr-6" title={file.Key}>{file.Key}</h4>
@@ -145,108 +183,71 @@ const FileCard = ({ file, inTrash, onRestore, onDelete, isLiked, toggleLike }) =
   </motion.div>
 );
 
-// --- NEW COMPONENT: Storage Breakdown Bar ---
-const StorageBreakdown = ({ stats, totalSize }) => {
+const UpgradeModal = ({ onClose, onUpgrade }) => {
+    const [loading, setLoading] = useState(false);
+    const handleBuy = () => { setLoading(true); onUpgrade(); }; // Triggers Stripe
+
     return (
-        <div className="mt-4 w-full flex h-3 bg-gray-100 rounded-full overflow-hidden">
-             {Object.keys(stats).map((cat) => {
-                 if(stats[cat] === 0) return null;
-                 const percent = (stats[cat] / totalSize) * 100;
-                 return (
-                     <div key={cat} style={{ width: `${percent}%` }} className={`h-full ${CATEGORY_COLORS[cat]}`} title={`${cat}: ${humanSize(stats[cat])}`} />
-                 )
-             })}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col md:flex-row">
+                <div className="p-8 md:w-1/2 flex flex-col justify-center">
+                    <span className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Go Pro</span>
+                    <h2 className="text-3xl font-bold text-gray-900 mb-4">Upgrade your CloudBox</h2>
+                    <p className="text-gray-500 mb-6 text-sm">Get 50GB storage and premium features.</p>
+                    <ul className="space-y-3 mb-8">
+                        {["50GB Cloud Storage", "Priority Support", "4K Video Uploads", "No File Size Limit"].map((item, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm text-gray-700"><div className="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><Icon.Check width="12"/></div>{item}</li>
+                        ))}
+                    </ul>
+                </div>
+                <div className="md:w-1/2 bg-gray-50 p-8 flex items-center justify-center">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full border border-indigo-100 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">POPULAR</div>
+                        <h3 className="text-lg font-bold text-gray-800">Pro Plan</h3>
+                        <div className="flex items-end gap-1 my-2"><span className="text-4xl font-bold text-indigo-600">$9</span><span className="text-gray-400 mb-1">/ month</span></div>
+                        <p className="text-xs text-gray-400 mb-6">Billed monthly. Cancel anytime.</p>
+                        <button onClick={handleBuy} disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform flex items-center justify-center gap-2">
+                            {loading ? <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"/> : "Upgrade Now"}
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
         </div>
-    )
-}
-
-// --- NEW COMPONENT: Profile Modal ---
-const ProfileModal = ({ user, stats, totalUsed, totalLimit, onClose }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white"><Icon.Close width="24"/></button>
-            </div>
-            <div className="px-8 pb-8 -mt-12 relative">
-                <div className="w-24 h-24 bg-white rounded-2xl p-1 shadow-lg">
-                    <div className="w-full h-full bg-indigo-100 rounded-xl flex items-center justify-center text-3xl font-bold text-indigo-600 border border-indigo-50">
-                        {user.avatar}
-                    </div>
-                </div>
-                <div className="mt-4">
-                    <h2 className="text-2xl font-bold text-gray-800">{user.name}</h2>
-                    <p className="text-gray-500">{user.email}</p>
-                </div>
-
-                <div className="mt-8">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Storage Analytics</h3>
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-end">
-                            <span className="text-3xl font-bold text-gray-800">{humanSize(totalUsed)}</span>
-                            <span className="text-sm text-gray-400 mb-1">of {humanSize(totalLimit)}</span>
-                        </div>
-                        <StorageBreakdown stats={stats} totalSize={totalLimit} />
-                        
-                        <div className="grid grid-cols-2 gap-4 mt-6">
-                            {Object.entries(stats).map(([cat, size]) => (
-                                <div key={cat} className="flex items-center gap-2">
-                                    <div className={`w-3 h-3 rounded-full ${CATEGORY_COLORS[cat]}`} />
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-semibold text-gray-700">{cat}</span>
-                                        <span className="text-[10px] text-gray-400">{humanSize(size)}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </motion.div>
-    </div>
-);
+    );
+};
 
 export default function App() {
   const { user, login, logout } = useAuth();
   const [toasts, setToasts] = useState([]);
   const notify = useCallback((msg, type) => { const id = Date.now(); setToasts(p => [...p, { id, msg, type }]); setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000); }, []);
-  const { files, loading, uploadProgress, uploadFile, permanentlyDeleteFile } = useFileSystem(notify);
+  const { files, loading, uploadProgress, uploadFile, toggleFavorite, moveToTrash, restoreFromTrash, permanentlyDeleteFile, startProUpgrade } = useFileSystem(notify);
   
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
-  const [favorites, setFavorites] = useState(() => { try { return JSON.parse(localStorage.getItem("cloudbox_favs")) || []; } catch { return []; }});
-  const [trash, setTrash] = useState(() => { try { return JSON.parse(localStorage.getItem("cloudbox_trash")) || []; } catch { return []; }});
-  const [showProfile, setShowProfile] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [totalLimit, setTotalLimit] = useState(100 * 1024 * 1024);
 
-  const toggleFavorite = (key) => setFavorites(p => { const n = p.includes(key) ? p.filter(k => k !== key) : [...p, key]; localStorage.setItem("cloudbox_favs", JSON.stringify(n)); return n; });
-  const moveToTrash = (key) => { setTrash(p => { const n = [...p, key]; localStorage.setItem("cloudbox_trash", JSON.stringify(n)); return n; }); notify("Moved to Trash"); };
-  const restoreFromTrash = (key) => { setTrash(p => { const n = p.filter(k => k !== key); localStorage.setItem("cloudbox_trash", JSON.stringify(n)); return n; }); notify("File Restored"); };
-  const handlePermanentDelete = async (key) => { if(confirm("Permanently delete?")) { await permanentlyDeleteFile(key); setTrash(p => p.filter(k => k !== key)); }};
+  const handlePermanentDelete = async (file) => { if(confirm("Permanently delete?")) await permanentlyDeleteFile(file); };
 
   const filteredFiles = useMemo(() => {
     let result = files;
-    if (activeTab === 'trash') return result.filter(f => trash.includes(f.Key));
-    result = result.filter(f => !trash.includes(f.Key)); // Hide trash from normal views
+    if (activeTab === 'trash') return result.filter(f => f.isTrash);
+    result = result.filter(f => !f.isTrash); // Hide trash
     if(search) result = result.filter(f => f.Key.toLowerCase().includes(search.toLowerCase()));
     if (activeTab === 'recent') result = [...result].sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified));
-    else if (activeTab === 'favorites') result = result.filter(f => favorites.includes(f.Key));
+    else if (activeTab === 'favorites') result = result.filter(f => f.isFavorite);
     return result;
-  }, [files, search, activeTab, favorites, trash]);
+  }, [files, search, activeTab]);
 
-  // --- ANALYTICS CALCULATION ---
-  const TOTAL_STORAGE = 100 * 1024 * 1024; 
   const usedStorage = useMemo(() => files.reduce((acc, f) => acc + (f.Size || 0), 0), [files]);
   const storageStats = useMemo(() => {
       const stats = { Images: 0, Videos: 0, Documents: 0, Audio: 0, Others: 0 };
-      files.forEach(f => {
-          const cat = getFileCategory(f.Key);
-          stats[cat] += (f.Size || 0);
-      });
+      files.forEach(f => { const cat = getFileCategory(f.Key); stats[cat] += (f.Size || 0); });
       return stats;
   }, [files]);
   
   const fileInputRef = useRef(null);
 
-  // --- LOGIN SCREEN ---
   if (!user) return (
     <div className="min-h-screen bg-[#F3F4F6] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
@@ -256,14 +257,8 @@ export default function App() {
         <div className="p-8">
           <h2 className="text-2xl font-bold text-center text-gray-800">Welcome Back</h2>
           <form onSubmit={(e) => { e.preventDefault(); login(e.target.name.value, e.target.email.value); }} className="space-y-4 mt-8">
-            <div>
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Full Name</label>
-                <input name="name" placeholder="John Doe" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all mt-1" required />
-            </div>
-            <div>
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Email Address</label>
-                <input name="email" type="email" placeholder="john@example.com" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all mt-1" required />
-            </div>
+            <input name="name" placeholder="Full Name" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
+            <input name="email" type="email" placeholder="Email Address" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
             <button className="w-full py-3 rounded-xl bg-gray-900 text-white font-medium hover:bg-black transition-colors shadow-lg mt-4">Access Dashboard</button>
           </form>
         </div>
@@ -273,61 +268,41 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden font-sans text-gray-900">
-      
-      {/* Sidebar */}
       <aside className="w-64 bg-white/70 backdrop-blur-2xl border-r border-white/50 hidden md:flex flex-col z-20 shadow-xl shadow-indigo-100/20">
         <div className="p-8 flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/30"><Icon.Cloud width="18"/></div>
           <span className="font-bold text-xl tracking-tight text-gray-900">CloudBox</span>
         </div>
-        
         <nav className="flex-1 px-4 space-y-2">
           <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Menu</div>
           <SidebarItem icon={Icon.File} label="All Files" active={activeTab==='all'} onClick={() => setActiveTab('all')} />
           <SidebarItem icon={Icon.Clock} label="Recent" active={activeTab==='recent'} onClick={() => setActiveTab('recent')} />
           <SidebarItem icon={Icon.Heart} label="Favorites" active={activeTab==='favorites'} onClick={() => setActiveTab('favorites')} />
           <SidebarItem icon={Icon.Trash} label="Trash" active={activeTab==='trash'} onClick={() => setActiveTab('trash')} />
+          <div className="pt-4"><SidebarItem icon={Icon.Star} label="Upgrade Plan" highlight onClick={() => setShowUpgrade(true)} /></div>
         </nav>
-
-        {/* Storage Widget with Color Bar */}
         <div className="p-6">
-            <div className="bg-gray-900 rounded-2xl p-4 text-white shadow-xl shadow-gray-900/10 relative overflow-hidden cursor-pointer hover:scale-105 transition-transform" onClick={() => setShowProfile(true)}>
+            <div className="bg-gray-900 rounded-2xl p-4 text-white shadow-xl shadow-gray-900/10 relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mt-2 -mr-2 w-20 h-20 bg-white/10 rounded-full blur-2xl"></div>
-                <h4 className="font-semibold text-sm relative z-10 flex justify-between items-center">
-                    Storage 
-                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">View Details</span>
-                </h4>
+                <h4 className="font-semibold text-sm relative z-10 flex justify-between">Storage {totalLimit > 104857600 && <span className="text-yellow-400 text-[10px]">PRO</span>}</h4>
                 <div className="mt-3 relative z-10">
-                    <div className="flex justify-between text-xs mb-1 opacity-80">
-                        <span>{humanSize(usedStorage)}</span>
-                        <span>{humanSize(TOTAL_STORAGE)}</span>
-                    </div>
-                    {/* Multi-color Progress Bar */}
-                    <div className="flex h-1.5 bg-gray-700 rounded-full overflow-hidden w-full">
-                        {Object.keys(storageStats).map((cat) => (
-                             <div key={cat} style={{ width: `${(storageStats[cat] / TOTAL_STORAGE) * 100}%` }} className={`h-full ${CATEGORY_COLORS[cat]}`} />
-                        ))}
-                    </div>
+                    <div className="flex justify-between text-xs mb-1 opacity-80"><span>{humanSize(usedStorage)}</span><span>{humanSize(totalLimit)}</span></div>
+                    <div className="flex h-1.5 bg-gray-700 rounded-full overflow-hidden w-full">{Object.keys(storageStats).map((cat) => (<div key={cat} style={{ width: `${(storageStats[cat] / totalLimit) * 100}%` }} className={`h-full ${CATEGORY_COLORS[cat]}`} />))}</div>
                 </div>
             </div>
             <button onClick={logout} className="mt-4 flex items-center gap-2 text-gray-400 hover:text-red-500 text-sm px-2 transition-colors"><Icon.LogOut width="16"/> Sign Out</button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col relative overflow-hidden">
         <header className="px-8 py-5 flex items-center justify-between bg-white/40 backdrop-blur-sm sticky top-0 z-10 border-b border-white/40">
            <div className="flex-1 max-w-xl relative group">
               <Icon.Search width="18" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"/>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search your files..." className="w-full pl-10 pr-4 py-2.5 bg-white/60 border border-transparent focus:border-indigo-100 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm outline-none transition-all shadow-sm" />
            </div>
-           {/* Profile Trigger */}
-           <div className="flex items-center gap-4 ml-4 cursor-pointer" onClick={() => setShowProfile(true)}>
-              <div className="text-right hidden sm:block">
-                  <p className="text-sm font-bold text-gray-800">{user.name}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm hover:scale-110 transition-transform">{user.avatar}</div>
+           <div className="flex items-center gap-4 ml-4">
+              <div className="text-right hidden sm:block"><p className="text-sm font-bold text-gray-800">{user.name}</p><p className="text-xs text-gray-500">{user.email}</p></div>
+              <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm">{user.avatar}</div>
            </div>
         </header>
 
@@ -340,10 +315,7 @@ export default function App() {
                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${uploadProgress > 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500 group-hover:bg-indigo-100 group-hover:text-indigo-600 group-hover:scale-110'}`}>
                             {uploadProgress > 0 ? <span className="font-bold text-sm">{uploadProgress}%</span> : <Icon.Upload width="28"/>}
                             </div>
-                            <div>
-                                <h3 className="text-gray-900 font-semibold">{uploadProgress > 0 ? "Uploading..." : "Click or drop to upload"}</h3>
-                                <p className="text-gray-400 text-xs mt-1">Supports Images, Videos, PDFs</p>
-                            </div>
+                            <div><h3 className="text-gray-900 font-semibold">{uploadProgress > 0 ? "Uploading..." : "Click or drop to upload"}</h3><p className="text-gray-400 text-xs mt-1">Files up to 10MB supported</p></div>
                         </div>
                         {uploadProgress > 0 && <motion.div className="absolute bottom-0 left-0 h-1 bg-indigo-500" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} />}
                     </div>
@@ -354,8 +326,7 @@ export default function App() {
                 <h3 className="text-xl font-bold text-gray-800 capitalize">{activeTab === 'trash' ? 'Trash Bin' : activeTab === 'recent' ? 'Recent Files' : activeTab === 'favorites' ? 'Your Favorites' : 'All Files'}</h3>
             </div>
 
-            {loading ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[1,2,3,4].map(i => <div key={i} className="h-32 bg-gray-200/50 rounded-2xl animate-pulse"/>)}</div>
+            {loading ? ( <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[1,2,3,4].map(i => <div key={i} className="h-32 bg-gray-200/50 rounded-2xl animate-pulse"/>)}</div>
             ) : filteredFiles.length === 0 ? (
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-20 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-gray-300">
                     <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6 shadow-inner text-indigo-500">{activeTab === 'trash' ? <Icon.Trash width="40"/> : <Icon.Search width="40"/>}</div>
@@ -364,30 +335,22 @@ export default function App() {
             ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     <AnimatePresence>
-                      {filteredFiles.map(f => (
-                        <FileCard key={f.Key} file={f} inTrash={activeTab === 'trash'} onDelete={activeTab === 'trash' ? handlePermanentDelete : moveToTrash} onRestore={restoreFromTrash} isLiked={favorites.includes(f.Key)} toggleLike={toggleFavorite} />
-                      ))}
+                      {filteredFiles.map(f => ( <FileCard key={f.Key} file={f} inTrash={activeTab === 'trash'} onDelete={activeTab === 'trash' ? handlePermanentDelete : moveToTrash} onRestore={restoreFromTrash} isLiked={f.isFavorite} toggleLike={toggleFavorite} /> ))}
                     </AnimatePresence>
                 </div>
             )}
         </div>
       </main>
 
-      {/* Profile Modal */}
       <AnimatePresence>
-          {showProfile && <ProfileModal user={user} stats={storageStats} totalUsed={usedStorage} totalLimit={TOTAL_STORAGE} onClose={() => setShowProfile(false)} />}
-      </AnimatePresence>
-
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none">
-        <AnimatePresence>
+          {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={startProUpgrade} />}
           {toasts.map(t => (
-            <motion.div key={t.id} layout initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-3 border pointer-events-auto ${t.type==='error' ? 'bg-red-500/90 text-white border-red-500' : 'bg-white/90 text-gray-800 border-white/20'}`}>
+            <motion.div key={t.id} layout initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-3 border pointer-events-auto ${t.type==='error' ? 'bg-red-500/90 text-white border-red-500' : t.type==='success' ? 'bg-green-600 text-white border-green-500' : 'bg-white/90 text-gray-800 border-white/20'}`}>
               <div className={`w-2 h-2 rounded-full ${t.type === 'error' ? 'bg-white' : 'bg-green-500'}`} />
               <span className="text-sm font-medium">{t.msg}</span>
             </motion.div>
           ))}
-        </AnimatePresence>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }
