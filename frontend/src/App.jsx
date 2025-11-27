@@ -183,14 +183,79 @@ const FileCard = ({ file, inTrash, onRestore, onDelete, isLiked, toggleLike }) =
   </motion.div>
 );
 
+// --- COMPONENT: Storage Breakdown Bar ---
+const StorageBreakdown = ({ stats, totalSize }) => {
+    return (
+        <div className="mt-4 w-full flex h-3 bg-gray-100 rounded-full overflow-hidden">
+             {Object.keys(stats).map((cat) => {
+                 if(stats[cat] === 0) return null;
+                 const percent = (stats[cat] / totalSize) * 100;
+                 return (
+                     <div key={cat} style={{ width: `${percent}%` }} className={`h-full ${CATEGORY_COLORS[cat]}`} title={`${cat}: ${humanSize(stats[cat])}`} />
+                 )
+             })}
+        </div>
+    )
+}
+
+// --- COMPONENT: Profile Modal ---
+const ProfileModal = ({ user, stats, totalUsed, totalLimit, onClose }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={onClose}>
+        <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative">
+            <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white"><Icon.Close width="24"/></button>
+            </div>
+            <div className="px-8 pb-8 -mt-12 relative">
+                <div className="w-24 h-24 bg-white rounded-2xl p-1 shadow-lg">
+                    <div className="w-full h-full bg-indigo-100 rounded-xl flex items-center justify-center text-3xl font-bold text-indigo-600 border border-indigo-50">
+                        {user.avatar}
+                    </div>
+                </div>
+                <div className="mt-4">
+                    <h2 className="text-2xl font-bold text-gray-800">{user.name}</h2>
+                    <p className="text-gray-500">{user.email}</p>
+                </div>
+
+                <div className="mt-8">
+                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Storage Analytics</h3>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-end">
+                            <span className="text-3xl font-bold text-gray-800">{humanSize(totalUsed)}</span>
+                            <span className="text-sm text-gray-400 mb-1">of {humanSize(totalLimit)}</span>
+                        </div>
+                        <StorageBreakdown stats={stats} totalSize={totalLimit} />
+                        
+                        <div className="grid grid-cols-2 gap-4 mt-6">
+                            {Object.entries(stats).map(([cat, size]) => (
+                                <div key={cat} className="flex items-center gap-2">
+                                    <div className={`w-3 h-3 rounded-full ${CATEGORY_COLORS[cat]}`} />
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-semibold text-gray-700">{cat}</span>
+                                        <span className="text-[10px] text-gray-400">{humanSize(size)}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    </div>
+);
+
+// --- COMPONENT: Upgrade Modal (FIXED) ---
 const UpgradeModal = ({ onClose, onUpgrade }) => {
     const [loading, setLoading] = useState(false);
-    const handleBuy = () => { setLoading(true); onUpgrade(); }; // Triggers Stripe
+    const handleBuy = () => { setLoading(true); onUpgrade(); };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col md:flex-row">
-                <div className="p-8 md:w-1/2 flex flex-col justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col md:flex-row relative" onClick={e => e.stopPropagation()}>
+                
+                {/* CLOSE BUTTON */}
+                <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors z-10"><Icon.Close width="16" /></button>
+
+                <div className="p-8 md:w-1/2 flex flex-col justify-center bg-white">
                     <span className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Go Pro</span>
                     <h2 className="text-3xl font-bold text-gray-900 mb-4">Upgrade your CloudBox</h2>
                     <p className="text-gray-500 mb-6 text-sm">Get 50GB storage and premium features.</p>
@@ -206,9 +271,13 @@ const UpgradeModal = ({ onClose, onUpgrade }) => {
                         <h3 className="text-lg font-bold text-gray-800">Pro Plan</h3>
                         <div className="flex items-end gap-1 my-2"><span className="text-4xl font-bold text-indigo-600">$9</span><span className="text-gray-400 mb-1">/ month</span></div>
                         <p className="text-xs text-gray-400 mb-6">Billed monthly. Cancel anytime.</p>
-                        <button onClick={handleBuy} disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform flex items-center justify-center gap-2">
-                            {loading ? <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"/> : "Upgrade Now"}
-                        </button>
+                        
+                        <div className="space-y-3">
+                            <button onClick={handleBuy} disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform flex items-center justify-center gap-2">
+                                {loading ? <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"/> : "Upgrade Now"}
+                            </button>
+                            <button onClick={onClose} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 font-medium">No thanks, maybe later</button>
+                        </div>
                     </div>
                 </div>
             </motion.div>
@@ -225,6 +294,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [totalLimit, setTotalLimit] = useState(100 * 1024 * 1024);
 
   const handlePermanentDelete = async (file) => { if(confirm("Permanently delete?")) await permanentlyDeleteFile(file); };
@@ -282,7 +352,7 @@ export default function App() {
           <div className="pt-4"><SidebarItem icon={Icon.Star} label="Upgrade Plan" highlight onClick={() => setShowUpgrade(true)} /></div>
         </nav>
         <div className="p-6">
-            <div className="bg-gray-900 rounded-2xl p-4 text-white shadow-xl shadow-gray-900/10 relative overflow-hidden">
+            <div onClick={() => setShowProfile(true)} className="bg-gray-900 rounded-2xl p-4 text-white shadow-xl shadow-gray-900/10 relative overflow-hidden cursor-pointer hover:scale-105 transition-transform">
                 <div className="absolute top-0 right-0 -mt-2 -mr-2 w-20 h-20 bg-white/10 rounded-full blur-2xl"></div>
                 <h4 className="font-semibold text-sm relative z-10 flex justify-between">Storage {totalLimit > 104857600 && <span className="text-yellow-400 text-[10px]">PRO</span>}</h4>
                 <div className="mt-3 relative z-10">
@@ -300,9 +370,9 @@ export default function App() {
               <Icon.Search width="18" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"/>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search your files..." className="w-full pl-10 pr-4 py-2.5 bg-white/60 border border-transparent focus:border-indigo-100 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm outline-none transition-all shadow-sm" />
            </div>
-           <div className="flex items-center gap-4 ml-4">
+           <div className="flex items-center gap-4 ml-4 cursor-pointer" onClick={() => setShowProfile(true)}>
               <div className="text-right hidden sm:block"><p className="text-sm font-bold text-gray-800">{user.name}</p><p className="text-xs text-gray-500">{user.email}</p></div>
-              <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm">{user.avatar}</div>
+              <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm hover:scale-110 transition-transform">{user.avatar}</div>
            </div>
         </header>
 
@@ -344,6 +414,7 @@ export default function App() {
 
       <AnimatePresence>
           {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={startProUpgrade} />}
+          {showProfile && <ProfileModal user={user} stats={storageStats} totalUsed={usedStorage} totalLimit={totalLimit} onClose={() => setShowProfile(false)} />}
           {toasts.map(t => (
             <motion.div key={t.id} layout initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-3 border pointer-events-auto ${t.type==='error' ? 'bg-red-500/90 text-white border-red-500' : t.type==='success' ? 'bg-green-600 text-white border-green-500' : 'bg-white/90 text-gray-800 border-white/20'}`}>
               <div className={`w-2 h-2 rounded-full ${t.type === 'error' ? 'bg-white' : 'bg-green-500'}`} />
