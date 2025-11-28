@@ -30,15 +30,16 @@ const getFileCategory = (filename) => {
     return 'Others';
 };
 
+/* --- UPDATED PALETTE FOR TAN THEME --- */
 const CATEGORY_COLORS = {
-    Images: 'bg-indigo-500',
-    Videos: 'bg-rose-500',
-    Documents: 'bg-emerald-500',
-    Audio: 'bg-amber-500',
-    Others: 'bg-slate-400'
+    Images: 'bg-[#D5B893]',       // Tan (Primary)
+    Videos: 'bg-[#C5A880]',       // Darker Tan
+    Documents: 'bg-[#E5D4BC]',    // Lighter Tan
+    Audio: 'bg-[#8C7A5E]',        // Brown
+    Others: 'bg-stone-300'        // Grey
 };
 
-/* --- ICONS (Added Menu Icon) --- */
+/* --- ICONS (Neutral Colors) --- */
 const Icon = {
   Cloud: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19c0-3.037-2.463-5.5-5.5-5.5S6.5 15.963 6.5 19"/><path d="M12 13.5V5"/><path d="M12 5l4 4"/><path d="M12 5L8 9"/></svg>,
   File: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>,
@@ -153,32 +154,32 @@ function useFileSystem(notify) {
 /* --- COMPONENTS --- */
 
 const SidebarItem = ({ icon: IconComp, label, active, onClick, highlight }) => (
-    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${highlight ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/30 hover:scale-105' : active ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-gray-500 hover:bg-white/50 hover:text-gray-900'}`}>
+    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${highlight ? 'bg-[#D5B893] text-white shadow-lg hover:bg-[#c4a47d] hover:scale-105' : active ? 'bg-[#D5B893]/20 text-[#8C7350] shadow-sm' : 'text-gray-500 hover:bg-[#F3EFE6] hover:text-[#8C7350]'}`}>
         <IconComp width="18" className={active || highlight ? "opacity-100" : "opacity-70"}/> {label}
     </button>
 );
 
 const FileCard = ({ file, inTrash, onRestore, onDelete, isLiked, toggleLike }) => (
-  <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ y: -5, boxShadow: "0 20px 40px -15px rgba(79, 70, 229, 0.2)" }} className="group relative bg-white/70 backdrop-blur-sm rounded-2xl p-5 border border-gray-100 shadow-sm hover:border-indigo-100 transition-all cursor-pointer">
+  <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ y: -5, borderColor: '#D5B893', boxShadow: "0 15px 30px -10px rgba(213, 184, 147, 0.3)" }} className="group relative bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-stone-100 shadow-sm transition-all cursor-pointer">
     <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
        {inTrash ? (
          <button onClick={(e) => { e.stopPropagation(); onRestore(file); }} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><Icon.Refresh width="14" /></button>
        ) : (
-         <button onClick={(e) => { e.stopPropagation(); toggleLike(file); }} className={`p-1.5 rounded-lg hover:bg-pink-50 ${isLiked ? 'text-pink-500' : 'text-gray-400'}`}><Icon.Heart width="14" filled={isLiked} /></button>
+         <button onClick={(e) => { e.stopPropagation(); toggleLike(file); }} className={`p-1.5 rounded-lg hover:bg-[#FAF6F0] ${isLiked ? 'text-red-500' : 'text-gray-400'}`}><Icon.Heart width="14" filled={isLiked} /></button>
        )}
-       <button onClick={(e) => { e.stopPropagation(); onDelete(file); }} className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100"><Icon.Trash width="14" /></button>
+       <button onClick={(e) => { e.stopPropagation(); onDelete(file); }} className="p-1.5 bg-stone-100 text-stone-500 rounded-lg hover:bg-red-50 hover:text-red-500"><Icon.Trash width="14" /></button>
     </div>
-    <div className="w-12 h-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center text-indigo-500 mb-4 group-hover:scale-110 transition-transform duration-300"><Icon.File width="24" /></div>
+    <div className="w-12 h-12 bg-[#F3EFE6] rounded-xl flex items-center justify-center text-[#8C7350] mb-4 group-hover:scale-110 transition-transform duration-300"><Icon.File width="24" /></div>
     <h4 className="font-semibold text-gray-800 text-sm truncate pr-6" title={file.Key}>{file.Key}</h4>
     <div className="flex justify-between items-center mt-2">
       <span className="text-xs text-gray-400">{humanSize(file.Size)}</span>
-      <span className="text-[10px] uppercase font-bold text-gray-300 tracking-wider">{getFileCategory(file.Key)}</span>
+      <span className="text-[10px] uppercase font-bold text-[#D5B893] tracking-wider">{getFileCategory(file.Key)}</span>
     </div>
   </motion.div>
 );
 
 const StorageBreakdown = ({ stats, totalSize }) => (
-    <div className="mt-4 w-full flex h-3 bg-gray-100 rounded-full overflow-hidden">
+    <div className="mt-4 w-full flex h-3 bg-stone-100 rounded-full overflow-hidden">
          {Object.keys(stats).map((cat) => {
              if(stats[cat] === 0) return null;
              const percent = (stats[cat] / totalSize) * 100;
@@ -188,21 +189,21 @@ const StorageBreakdown = ({ stats, totalSize }) => (
 );
 
 const ProfileModal = ({ user, stats, totalUsed, totalLimit, onClose }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#5E503F]/30 backdrop-blur-sm p-4" onClick={onClose}>
         <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative">
-            <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white"><Icon.Close width="24"/></button>
+            <div className="h-32 bg-[#D5B893] relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-stone-100"><Icon.Close width="24"/></button>
             </div>
             <div className="px-8 pb-8 -mt-12 relative">
                 <div className="w-24 h-24 bg-white rounded-2xl p-1 shadow-lg">
-                    <div className="w-full h-full bg-indigo-100 rounded-xl flex items-center justify-center text-3xl font-bold text-indigo-600 border border-indigo-50">{user.avatar}</div>
+                    <div className="w-full h-full bg-[#F3EFE6] rounded-xl flex items-center justify-center text-3xl font-bold text-[#8C7350] border border-[#D5B893]/30">{user.avatar}</div>
                 </div>
                 <div className="mt-4">
                     <h2 className="text-2xl font-bold text-gray-800">{user.name}</h2>
                     <p className="text-gray-500">{user.email}</p>
                 </div>
                 <div className="mt-8">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Storage Analytics</h3>
+                    <h3 className="text-sm font-bold text-[#D5B893] uppercase tracking-wider mb-4">Storage Analytics</h3>
                     <div className="space-y-4">
                         <div className="flex justify-between items-end">
                             <span className="text-3xl font-bold text-gray-800">{humanSize(totalUsed)}</span>
@@ -229,27 +230,27 @@ const UpgradeModal = ({ onClose, onUpgrade }) => {
     const handleBuy = () => { setLoading(true); onUpgrade(); };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#5E503F]/40 backdrop-blur-sm p-4" onClick={onClose}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col md:flex-row relative" onClick={e => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors z-10"><Icon.Close width="16" /></button>
+                <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-stone-100 rounded-full text-gray-500 hover:bg-stone-200 transition-colors z-10"><Icon.Close width="16" /></button>
                 <div className="p-8 md:w-1/2 flex flex-col justify-center bg-white">
-                    <span className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-2">Go Pro</span>
+                    <span className="text-xs font-bold text-[#D5B893] uppercase tracking-widest mb-2">Go Pro</span>
                     <h2 className="text-3xl font-bold text-gray-900 mb-4">Upgrade your CloudBox</h2>
                     <p className="text-gray-500 mb-6 text-sm">Get 50GB storage and premium features.</p>
                     <ul className="space-y-3 mb-8">
                         {["50GB Cloud Storage", "Priority Support", "4K Video Uploads", "No File Size Limit"].map((item, i) => (
-                            <li key={i} className="flex items-center gap-2 text-sm text-gray-700"><div className="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><Icon.Check width="12"/></div>{item}</li>
+                            <li key={i} className="flex items-center gap-2 text-sm text-gray-700"><div className="w-5 h-5 rounded-full bg-[#F3EFE6] text-[#8C7350] flex items-center justify-center"><Icon.Check width="12"/></div>{item}</li>
                         ))}
                     </ul>
                 </div>
-                <div className="md:w-1/2 bg-gray-50 p-8 flex items-center justify-center">
-                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full border border-indigo-100 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">POPULAR</div>
+                <div className="md:w-1/2 bg-[#FAF6F0] p-8 flex items-center justify-center">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full border border-[#E5D4BC] relative overflow-hidden">
+                        <div className="absolute top-0 right-0 bg-[#D5B893] text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">POPULAR</div>
                         <h3 className="text-lg font-bold text-gray-800">Pro Plan</h3>
-                        <div className="flex items-end gap-1 my-2"><span className="text-4xl font-bold text-indigo-600">$9</span><span className="text-gray-400 mb-1">/ month</span></div>
+                        <div className="flex items-end gap-1 my-2"><span className="text-4xl font-bold text-[#8C7350]">$9</span><span className="text-gray-400 mb-1">/ month</span></div>
                         <p className="text-xs text-gray-400 mb-6">Billed monthly. Cancel anytime.</p>
                         <div className="space-y-3">
-                            <button onClick={handleBuy} disabled={loading} className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform flex items-center justify-center gap-2">
+                            <button onClick={handleBuy} disabled={loading} className="w-full py-3 rounded-xl bg-[#D5B893] text-white font-bold shadow-lg shadow-[#D5B893]/30 hover:bg-[#c4a47d] hover:scale-105 transition-all flex items-center justify-center gap-2">
                                 {loading ? <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"/> : "Upgrade Now"}
                             </button>
                             <button onClick={onClose} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 font-medium">No thanks, maybe later</button>
@@ -272,7 +273,7 @@ export default function App() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [totalLimit, setTotalLimit] = useState(100 * 1024 * 1024);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile Menu State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handlePermanentDelete = async (file) => { if(confirm("Permanently delete?")) await permanentlyDeleteFile(file); };
 
@@ -295,18 +296,19 @@ export default function App() {
   
   const fileInputRef = useRef(null);
 
+  // --- LOGIN SCREEN (TAN THEME) ---
   if (!user) return (
-    <div className="min-h-screen bg-[#F3F4F6] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#D5B893] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
-        <div className="h-32 bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center">
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }} className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white shadow-inner"><Icon.Cloud width="32" /></motion.div>
+        <div className="h-32 bg-[#F3EFE6] flex items-center justify-center">
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }} className="w-16 h-16 bg-white/50 backdrop-blur-md rounded-2xl flex items-center justify-center text-[#8C7350] shadow-inner"><Icon.Cloud width="32" /></motion.div>
         </div>
         <div className="p-8">
           <h2 className="text-2xl font-bold text-center text-gray-800">Welcome Back</h2>
           <form onSubmit={(e) => { e.preventDefault(); login(e.target.name.value, e.target.email.value); }} className="space-y-4 mt-8">
-            <input name="name" placeholder="Full Name" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
-            <input name="email" type="email" placeholder="Email Address" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
-            <button className="w-full py-3 rounded-xl bg-gray-900 text-white font-medium hover:bg-black transition-colors shadow-lg mt-4">Access Dashboard</button>
+            <input name="name" placeholder="Full Name" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-stone-200 focus:bg-white focus:ring-2 focus:ring-[#D5B893]/50 outline-none transition-all" required />
+            <input name="email" type="email" placeholder="Email Address" className="w-full px-5 py-3 rounded-xl bg-gray-50 border border-stone-200 focus:bg-white focus:ring-2 focus:ring-[#D5B893]/50 outline-none transition-all" required />
+            <button className="w-full py-3 rounded-xl bg-[#D5B893] text-white font-bold hover:bg-[#c4a47d] transition-colors shadow-lg mt-4">Access Dashboard</button>
           </form>
         </div>
       </motion.div>
@@ -314,27 +316,20 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans text-gray-900">
+    <div className="flex h-screen overflow-hidden font-sans text-gray-900 bg-[#FAF9F6]">
       
-      {/* Mobile Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-            className="fixed inset-0 bg-black/50 z-20 md:hidden" 
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#5E503F]/50 z-20 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
       </AnimatePresence>
 
-      {/* Sidebar - Modified for Mobile Sliding */}
-      <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-white/70 backdrop-blur-2xl border-r border-white/50 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex flex-col shadow-xl shadow-indigo-100/20 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-white/70 backdrop-blur-2xl border-r border-[#E5D4BC]/50 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:flex flex-col shadow-xl shadow-[#D5B893]/10 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/30"><Icon.Cloud width="18"/></div>
+            <div className="w-8 h-8 bg-[#D5B893] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#D5B893]/40"><Icon.Cloud width="18"/></div>
             <span className="font-bold text-xl tracking-tight text-gray-900">CloudBox</span>
           </div>
-          {/* Close Menu Button (Mobile Only) */}
           <button className="md:hidden text-gray-500" onClick={() => setIsMobileMenuOpen(false)}><Icon.Close width="20"/></button>
         </div>
         
@@ -347,12 +342,12 @@ export default function App() {
           <div className="pt-4"><SidebarItem icon={Icon.Star} label="Upgrade Plan" highlight onClick={() => { setShowUpgrade(true); setIsMobileMenuOpen(false); }} /></div>
         </nav>
         <div className="p-6">
-            <div onClick={() => setShowProfile(true)} className="bg-gray-900 rounded-2xl p-4 text-white shadow-xl shadow-gray-900/10 relative overflow-hidden cursor-pointer hover:scale-105 transition-transform">
+            <div onClick={() => setShowProfile(true)} className="bg-[#292524] rounded-2xl p-4 text-white shadow-xl shadow-stone-900/10 relative overflow-hidden cursor-pointer hover:scale-105 transition-transform">
                 <div className="absolute top-0 right-0 -mt-2 -mr-2 w-20 h-20 bg-white/10 rounded-full blur-2xl"></div>
-                <h4 className="font-semibold text-sm relative z-10 flex justify-between">Storage {totalLimit > 104857600 && <span className="text-yellow-400 text-[10px]">PRO</span>}</h4>
+                <h4 className="font-semibold text-sm relative z-10 flex justify-between">Storage {totalLimit > 104857600 && <span className="text-[#D5B893] text-[10px]">PRO</span>}</h4>
                 <div className="mt-3 relative z-10">
                     <div className="flex justify-between text-xs mb-1 opacity-80"><span>{humanSize(usedStorage)}</span><span>{humanSize(totalLimit)}</span></div>
-                    <div className="flex h-1.5 bg-gray-700 rounded-full overflow-hidden w-full">{Object.keys(storageStats).map((cat) => (<div key={cat} style={{ width: `${(storageStats[cat] / totalLimit) * 100}%` }} className={`h-full ${CATEGORY_COLORS[cat]}`} />))}</div>
+                    <div className="flex h-1.5 bg-stone-700 rounded-full overflow-hidden w-full">{Object.keys(storageStats).map((cat) => (<div key={cat} style={{ width: `${(storageStats[cat] / totalLimit) * 100}%` }} className={`h-full ${CATEGORY_COLORS[cat]}`} />))}</div>
                 </div>
             </div>
             <button onClick={logout} className="mt-4 flex items-center gap-2 text-gray-400 hover:text-red-500 text-sm px-2 transition-colors"><Icon.LogOut width="16"/> Sign Out</button>
@@ -360,37 +355,32 @@ export default function App() {
       </aside>
 
       <main className="flex-1 flex flex-col relative overflow-hidden">
-        <header className="px-8 py-5 flex items-center justify-between bg-white/40 backdrop-blur-sm sticky top-0 z-10 border-b border-white/40">
+        <header className="px-8 py-5 flex items-center justify-between bg-white/40 backdrop-blur-sm sticky top-0 z-10 border-b border-[#E5D4BC]/40">
            <div className="flex items-center gap-4 flex-1 max-w-xl">
-              {/* Hamburger Button (Mobile Only) */}
-              <button className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-white/50 rounded-lg" onClick={() => setIsMobileMenuOpen(true)}>
-                  <Icon.Menu width="24" />
-              </button>
-              
+              <button className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-white/50 rounded-lg" onClick={() => setIsMobileMenuOpen(true)}><Icon.Menu width="24" /></button>
               <div className="relative group flex-1">
-                <Icon.Search width="18" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"/>
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search your files..." className="w-full pl-10 pr-4 py-2.5 bg-white/60 border border-transparent focus:border-indigo-100 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 rounded-xl text-sm outline-none transition-all shadow-sm" />
+                <Icon.Search width="18" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#D5B893] transition-colors"/>
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search your files..." className="w-full pl-10 pr-4 py-2.5 bg-white/60 border border-transparent focus:border-[#D5B893]/50 focus:bg-white focus:ring-4 focus:ring-[#D5B893]/10 rounded-xl text-sm outline-none transition-all shadow-sm" />
               </div>
            </div>
-           
            <div className="flex items-center gap-4 ml-4 cursor-pointer" onClick={() => setShowProfile(true)}>
               <div className="text-right hidden sm:block"><p className="text-sm font-bold text-gray-800">{user.name}</p><p className="text-xs text-gray-500">{user.email}</p></div>
-              <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm hover:scale-110 transition-transform">{user.avatar}</div>
+              <div className="w-10 h-10 rounded-full bg-[#F3EFE6] text-[#8C7350] flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm hover:scale-110 transition-transform">{user.avatar}</div>
            </div>
         </header>
 
         <div className="flex-1 overflow-y-auto px-8 pb-8">
             {activeTab !== 'trash' && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 mb-8">
-                    <div onClick={() => fileInputRef.current.click()} className="relative group border-2 border-dashed border-gray-300 hover:border-indigo-500 hover:bg-white/60 rounded-3xl p-8 transition-all cursor-pointer text-center overflow-hidden backdrop-blur-sm">
+                    <div onClick={() => fileInputRef.current.click()} className="relative group border-2 border-dashed border-[#D5B893]/40 hover:border-[#D5B893] hover:bg-white/60 rounded-3xl p-8 transition-all cursor-pointer text-center overflow-hidden backdrop-blur-sm">
                         <input type="file" className="hidden" ref={fileInputRef} onChange={(e) => uploadFile(e.target.files[0])} />
                         <div className="relative z-10 flex flex-col items-center gap-3">
-                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${uploadProgress > 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500 group-hover:bg-indigo-100 group-hover:text-indigo-600 group-hover:scale-110'}`}>
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${uploadProgress > 0 ? 'bg-[#D5B893] text-white' : 'bg-[#F3EFE6] text-[#8C7350] group-hover:bg-[#D5B893] group-hover:text-white group-hover:scale-110'}`}>
                             {uploadProgress > 0 ? <span className="font-bold text-sm">{uploadProgress}%</span> : <Icon.Upload width="28"/>}
                             </div>
                             <div><h3 className="text-gray-900 font-semibold">{uploadProgress > 0 ? "Uploading..." : "Click or drop to upload"}</h3><p className="text-gray-400 text-xs mt-1">Files up to 10MB supported</p></div>
                         </div>
-                        {uploadProgress > 0 && <motion.div className="absolute bottom-0 left-0 h-1 bg-indigo-500" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} />}
+                        {uploadProgress > 0 && <motion.div className="absolute bottom-0 left-0 h-1 bg-[#D5B893]" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} />}
                     </div>
                 </motion.div>
             )}
@@ -399,10 +389,10 @@ export default function App() {
                 <h3 className="text-xl font-bold text-gray-800 capitalize">{activeTab === 'trash' ? 'Trash Bin' : activeTab === 'recent' ? 'Recent Files' : activeTab === 'favorites' ? 'Your Favorites' : 'All Files'}</h3>
             </div>
 
-            {loading ? ( <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[1,2,3,4].map(i => <div key={i} className="h-32 bg-gray-200/50 rounded-2xl animate-pulse"/>)}</div>
+            {loading ? ( <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[1,2,3,4].map(i => <div key={i} className="h-32 bg-stone-200/50 rounded-2xl animate-pulse"/>)}</div>
             ) : filteredFiles.length === 0 ? (
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-20 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-gray-300">
-                    <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6 shadow-inner text-indigo-500">{activeTab === 'trash' ? <Icon.Trash width="40"/> : <Icon.Search width="40"/>}</div>
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-20 bg-white/50 backdrop-blur-sm rounded-3xl border border-dashed border-[#D5B893]/30">
+                    <div className="w-20 h-20 bg-[#F3EFE6] rounded-full flex items-center justify-center mb-6 shadow-inner text-[#8C7350]">{activeTab === 'trash' ? <Icon.Trash width="40"/> : <Icon.Search width="40"/>}</div>
                     <h3 className="text-xl font-bold text-gray-800">{activeTab === 'trash' ? "Trash is Empty" : "No files found"}</h3>
                 </motion.div>
             ) : (
@@ -419,8 +409,8 @@ export default function App() {
           {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} onUpgrade={startProUpgrade} />}
           {showProfile && <ProfileModal user={user} stats={storageStats} totalUsed={usedStorage} totalLimit={totalLimit} onClose={() => setShowProfile(false)} />}
           {toasts.map(t => (
-            <motion.div key={t.id} layout initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-3 border pointer-events-auto ${t.type==='error' ? 'bg-red-500/90 text-white border-red-500' : t.type==='success' ? 'bg-green-600 text-white border-green-500' : 'bg-white/90 text-gray-800 border-white/20'}`}>
-              <div className={`w-2 h-2 rounded-full ${t.type === 'error' ? 'bg-white' : 'bg-green-500'}`} />
+            <motion.div key={t.id} layout initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-3 border pointer-events-auto ${t.type==='error' ? 'bg-red-500/90 text-white border-red-500' : 'bg-[#292524]/90 text-white border-stone-700'}`}>
+              <div className={`w-2 h-2 rounded-full ${t.type === 'error' ? 'bg-white' : 'bg-[#D5B893]'}`} />
               <span className="text-sm font-medium">{t.msg}</span>
             </motion.div>
           ))}
